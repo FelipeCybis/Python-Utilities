@@ -28,12 +28,13 @@ except NameError:
     pass
 
 
-def openfilecheck(open_mode, file_name="", file_ext="", file_type=""):
+def openfilecheck(open_mode, file_name="", file_ext="", file_type="", verbose=True):
     """
     :param open_mode: {str} method to open the file (e.g., 'rb' for binary read only)
     :param file_name: [optional] {str} full path of file to open
     :param file_ext:  [optional] {str} file extension (e.g., '.nev')
     :param file_type: [optional] {str} file type for use when browsing for file (e.g., 'Blackrock NEV Files')
+    :param verbose: [optional] {bool} whether or not to print that file was opened
     :return: {file} opened file
     """
 
@@ -87,7 +88,8 @@ def openfilecheck(open_mode, file_name="", file_ext="", file_type=""):
             file_name = ""
             print("\n*** File given does exist, try again ***\n")
 
-    print("\n" + file_name.split("/")[-1] + " opened")
+    if verbose:
+        print("\n" + file_name.split("/")[-1] + " opened")
     return open(file_name, open_mode)
 
 

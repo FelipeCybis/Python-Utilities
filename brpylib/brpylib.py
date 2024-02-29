@@ -34,6 +34,7 @@ v2.0.3 - 05/11/2023 - Fixed bug with memmap and file.seek
 
 from __future__ import division  # for those using Python 2.6+
 
+import warnings
 from collections import namedtuple
 from datetime import datetime
 from math import ceil
@@ -59,6 +60,8 @@ try:
     input = raw_input
 except NameError:
     pass
+
+VERBOSE = True
 
 # Define global variables to remove magic numbers
 # <editor-fold desc="Globals">
@@ -428,10 +431,9 @@ nsx_header_dict = {
 # <editor-fold desc="Safety check functions">
 def check_elecid(elec_ids):
     if type(elec_ids) is str and elec_ids != ELEC_ID_DEF:
-        print(
+        warnings.warn(
             "\n*** WARNING: Electrode IDs must be 'all', a single integer, or a list of integers."
-        )
-        print("      Setting elec_ids to 'all'")
+            "      Setting elec_ids to 'all'")
         elec_ids = ELEC_ID_DEF
     if elec_ids != ELEC_ID_DEF and type(elec_ids) is not list:
         if type(elec_ids) == range:
@@ -445,7 +447,7 @@ def check_starttime(start_time_s):
     if not isinstance(start_time_s, (int, float)) or (
         isinstance(start_time_s, (int, float)) and start_time_s < START_TIME_DEF
     ):
-        print("\n*** WARNING: Start time is not valid, setting start_time_s to 0")
+        warnings.warn("\n*** WARNING: Start time is not valid, setting start_time_s to 0")
         start_time_s = START_TIME_DEF
     return start_time_s
 
@@ -454,20 +456,20 @@ def check_datatime(data_time_s):
     if (type(data_time_s) is str and data_time_s != DATA_TIME_DEF) or (
         isinstance(data_time_s, (int, float)) and data_time_s < 0
     ):
-        print("\n*** WARNING: Data time is not valid, setting data_time_s to 'all'")
+        warnings.warn("\n*** WARNING: Data time is not valid, setting data_time_s to 'all'")
         data_time_s = DATA_TIME_DEF
     return data_time_s
 
 
 def check_downsample(downsample):
     if not isinstance(downsample, int) or downsample < DOWNSAMPLE_DEF:
-        print(
+        warnings.warn(
             "\n*** WARNING: downsample must be an integer value greater than 0. "
             "      Setting downsample to 1 (no downsampling)"
         )
         downsample = DOWNSAMPLE_DEF
     if downsample > 1:
-        print(
+        warnings.warn(
             "\n*** WARNING: downsample will be deprecated in a future version."
             "      Set downsample to 1 (default) to match future behavior."
             "\n*** WARNING: downsample does not perform anti-aliasing."
@@ -482,10 +484,10 @@ def check_dataelecid(elec_ids, all_elec_ids):
     # if some electrodes asked for don't exist, reset list with those that do, or throw error and return
     if not unique_elec_ids.issubset(all_elec_ids):
         if not unique_elec_ids & all_elec_ids:
-            print("\nNone of the elec_ids passed exist in the data, returning None")
+            warnings.warn("\nNone of the elec_ids passed exist in the data, returning None")
             return None
         else:
-            print(
+            warnings.warn(
                 "\n*** WARNING: Channels "
                 + str(sorted(list(unique_elec_ids - all_elec_ids)))
                 + " do not exist in the data"
@@ -497,7 +499,7 @@ def check_dataelecid(elec_ids, all_elec_ids):
 
 def check_filesize(file_size):
     if file_size < DATA_FILE_SIZE_MIN:
-        print("\n file_size must be larger than 10 Mb, setting file_size=10 Mb")
+        warnings.warn("\n file_size must be larger than 10 Mb, setting file_size=10 Mb")
         return DATA_FILE_SIZE_MIN
     else:
         return int(file_size)
@@ -523,6 +525,7 @@ class NevFile:
             file_name=self.datafile,
             file_ext=".nev",
             file_type="Blackrock NEV Files",
+            verbose=VERBOSE,
         )
 
         # extract basic header information
@@ -1011,7 +1014,8 @@ class NevFile:
     def close(self):
         name = self.datafile.name
         self.datafile.close()
-        print("\n" + name.split("/")[-1] + " closed")
+        if VERBOSE:
+            print("\n" + name.split("/")[-1] + " closed")
 
 
 class NsxFile:
@@ -1032,6 +1036,7 @@ class NsxFile:
             file_name=self.datafile,
             file_ext=".ns*",
             file_type="Blackrock NSx Files",
+            verbose=VERBOSE,
         )
 
         # Determine File ID to determine if File Spec 2.1
@@ -1109,10 +1114,10 @@ class NsxFile:
         downsample = check_downsample(downsample)
         elec_ids = check_elecid(elec_ids)
         if zeropad and self.basic_header["TimeStampResolution"] == 1e9:
-            print("zeropad does not work with ptp-timestamped data. Ignoring zeropad argument.\n")
+            warnings.warn("zeropad does not work with ptp-timestamped data. Ignoring zeropad argument.\n")
             zeropad = False
         if force_srate and self.basic_header["TimeStampResolution"] != 1e9:
-            print("force_srate only works with ptp timestamps in filespec >= 3.x. Ignoring force_srate argument.\n")
+            warnings.warn("force_srate only works with ptp timestamps in filespec >= 3.x. Ignoring force_srate argument.\n")
             force_srate = False
 
         # initialize parameters
@@ -1378,7 +1383,7 @@ class NsxFile:
         # If file_size or file_time_s passed, check it and set file_sizing accordingly
         if file_time_s:
             if file_time_s and file_size:
-                print(
+                warnings.warn(
                     "\nWARNING: Only one of file_size or file_time_s can be passed, defaulting to file_time_s."
                 )
             file_size = int(
@@ -1417,13 +1422,15 @@ class NsxFile:
                 + file_ext
                 + "' already exists, overwrite [y/n]: "
             ):
-                print("\nExiting, no overwrite, returning None")
+                warnings.warn("\nExiting, no overwrite, returning None")
                 return None
             else:
-                print("\n*** Overwriting existing subset files ***")
+                if VERBOSE:
+                    print("\n*** Overwriting existing subset files ***")
 
         subset_file = open(file_name + "_000" + file_ext, "wb")
-        print("\nWriting subset file: " + ospath.split(subset_file.name)[1])
+        if VERBOSE:
+            print("\nWriting subset file: " + ospath.split(subset_file.name)[1])
 
         # For file spec 2.1:
         #   1) copy the first 28 bytes from the datafile (these are unchanged)
@@ -1564,9 +1571,10 @@ class NsxFile:
                         else:
                             numstr = "_" + str(file_num)
                         subset_file = open(file_name + numstr + file_ext, "wb")
-                        print(
-                            "Writing subset file: " + ospath.split(subset_file.name)[1]
-                        )
+                        if VERBOSE:
+                            print(
+                                "Writing subset file: " + ospath.split(subset_file.name)[1]
+                            )
 
                         if self.basic_header["FileSpec"] == "2.1":
                             subset_file.write(prior_file.read(32 + 4 * num_elecs))
@@ -1641,7 +1649,7 @@ class NsxFile:
                 and (self.datafile.tell() != ospath.getsize(self.datafile.name))
             ):
                 pausing = True
-                print(
+                warnings.warn(
                     "\n*** Because of pausing in original datafile, this file may be slightly time shorter\n"
                     "       than others, and will contain multiple data packets offset in time\n"
                 )
@@ -1657,10 +1665,12 @@ class NsxFile:
 
         # Close subset file and return success
         subset_file.close()
-        print("\n *** All subset files written to disk and closed ***")
+        if VERBOSE:
+            print("\n *** All subset files written to disk and closed ***")
         return "SUCCESS"
 
     def close(self):
         name = self.datafile.name
         self.datafile.close()
-        print("\n" + name.split("/")[-1] + " closed")
+        if VERBOSE:
+            print("\n" + name.split("/")[-1] + " closed")
